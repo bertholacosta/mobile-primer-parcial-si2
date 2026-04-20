@@ -104,4 +104,27 @@ class ApiService {
       throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al registrar vehículo');
     }
   }
+
+  // --- Endpoints de Incidentes ---
+  static Future<Map<String, dynamic>> reportarIncidente(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/incidentes/reportar'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al reportar incidente');
+    }
+  }
 }
