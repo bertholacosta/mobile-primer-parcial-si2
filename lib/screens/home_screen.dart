@@ -7,6 +7,8 @@ import '../api/api_service.dart';
 import 'login_screen.dart';
 import 'registrar_vehiculo_screen.dart';
 import 'reportar_incidente_screen.dart';
+import 'estado_incidente_screen.dart';
+import 'historial_incidentes_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -128,6 +130,15 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       },
+    );
+  }
+
+  void _abrirHistorial() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HistorialIncidentesScreen(gpsReal: _currentLocation),
+      ),
     );
   }
 
@@ -259,7 +270,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _abrirHistorial,
+                            icon: const Icon(Icons.assignment, color: Colors.orange),
+                            label: const Text('Mis Solicitudes'),
+                            style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.orange[800],
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                side: BorderSide(color: Colors.orange.withOpacity(0.5))),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         FloatingActionButton(
                           mini: true,
                           backgroundColor: Colors.indigo,

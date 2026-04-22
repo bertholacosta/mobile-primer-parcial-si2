@@ -127,4 +127,74 @@ class ApiService {
       throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al reportar incidente');
     }
   }
+
+  // --- Endpoints de Gestión de Solicitudes ---
+  static Future<List<dynamic>> getMisIncidentes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/incidentes/mis-incidentes'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al cargar incidentes');
+    }
+  }
+
+  static Future<List<dynamic>> getTalleresDisponibles(double? lat, double? lng) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    String url = '$baseUrl/incidentes/talleres-disponibles';
+    if (lat != null && lng != null) {
+      url += '?lat=$lat&lng=$lng';
+    }
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al cargar talleres');
+    }
+  }
+
+  static Future<Map<String, dynamic>> asignarTaller(int incidenteId, int tallerId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.patch(
+      Uri.parse('$baseUrl/incidentes/$incidenteId/asignar-taller'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'taller_id': tallerId}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al asignar taller');
+    }
+  }
 }
