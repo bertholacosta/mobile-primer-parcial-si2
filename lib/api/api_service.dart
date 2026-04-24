@@ -197,4 +197,109 @@ class ApiService {
       throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al asignar taller');
     }
   }
+
+  // --- Endpoints de Notificaciones ---
+  static Future<void> updateFcmToken(String fcmToken) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) return; // No hacemos tracking si no hay user
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/notificaciones/token'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'fcm_token': fcmToken}),
+    );
+
+    if (response.statusCode != 200) {
+      print('Warn: Error al subir FCM token al backend');
+    }
+  }
+
+  static Future<List<dynamic>> getMisNotificaciones() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/notificaciones/mis-notificaciones'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al cargar notificaciones');
+    }
+  }
+
+  static Future<void> marcarNotificacionLeida(int id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/notificaciones/estado/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al actualizar notificacion');
+    }
+  }
+
+  // --- Endpoints de Perfil ---
+  static Future<Map<String, dynamic>> getProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/profile/me'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al cargar perfil');
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/profile/me'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al actualizar perfil');
+    }
+  }
 }

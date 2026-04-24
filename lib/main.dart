@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'api/api_service.dart';
+import 'services/fcm_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+    await FcmService.initialize();
+  } catch (e) {
+    print('Firebase initialization error. Make sure to download and place google-services.json from Firebase Console: $e');
+  }
   runApp(const AppConductores());
 }
 

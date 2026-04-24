@@ -9,6 +9,8 @@ import 'registrar_vehiculo_screen.dart';
 import 'reportar_incidente_screen.dart';
 import 'estado_incidente_screen.dart';
 import 'historial_incidentes_screen.dart';
+import 'notifications_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -151,6 +153,19 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.white.withOpacity(0.9),
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.person, color: Color(0xFF4F46E5)),
+            tooltip: 'Mi Perfil',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications, color: Colors.indigo),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen()));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.black87),
             onPressed: () async {
