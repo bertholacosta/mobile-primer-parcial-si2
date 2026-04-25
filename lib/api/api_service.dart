@@ -198,6 +198,27 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> cancelarIncidente(int incidenteId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.patch(
+      Uri.parse('$baseUrl/incidentes/$incidenteId/cancelar'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al cancelar incidente');
+    }
+  }
+
   // --- Endpoints de Notificaciones ---
   static Future<void> updateFcmToken(String fcmToken) async {
     final prefs = await SharedPreferences.getInstance();

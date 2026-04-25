@@ -22,6 +22,7 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
   List<dynamic> _talleres = [];
   bool _isLoadingTalleres = true;
   bool _isAsignando = false;
+  bool _isCancelando = false;
   late AnimationController _pulseController;
 
   final List<_EstadoPaso> _pasos = [
@@ -96,7 +97,78 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
     }
   }
 
+  Future<void> _cancelarIncidente() async {
+    setState(() => _isCancelando = true);
+    try {
+      await ApiService.cancelarIncidente(_incidente['id']);
+      if (mounted) {
+        setState(() {
+          _incidente['estado'] = 'Cancelado';
+          _isCancelando = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Solicitud cancelada exitosamente'),
+            backgroundColor: Color(0xFF78909C),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCancelando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmarCancelacion() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2236),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFE53935), size: 28),
+            SizedBox(width: 10),
+            Text('Cancelar Solicitud',
+                style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          '¿Estás seguro de que deseas cancelar esta solicitud de emergencia? Esta acción no se puede deshacer.',
+          style: TextStyle(color: Colors.white70, fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child:
+                const Text('Volver', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _cancelarIncidente();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Sí, Cancelar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   int _getEstadoIndex(String estado) {
+    if (estado == 'Cancelado') return -1;
     for (int i = 0; i < _pasos.length; i++) {
       if (_pasos[i].nombre == estado) return i;
     }
@@ -109,6 +181,8 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
     final estadoIndex = _getEstadoIndex(estadoActual);
     final tallerAsignado = _incidente['taller'];
     final bool tieneTaller = tallerAsignado != null && _incidente['taller_id'] != null;
+    final bool isCancelado = estadoActual == 'Cancelado';
+    final bool puedeCancelar = !isCancelado && (estadoActual == 'Reportado' || estadoActual == 'Asignado');
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F1523),
@@ -127,16 +201,19 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
         physics: const BouncingScrollPhysics(),
         child: Column(
           children: [
+            // ─── ESTADO CANCELADO ───
+            if (isCancelado) _buildCanceladoBanner(),
+
             // ─── TIMELINE DE ESTADO ───
-            _buildTimeline(estadoIndex),
+            if (!isCancelado) _buildTimeline(estadoIndex),
 
             const SizedBox(height: 8),
 
             // ─── TALLER ASIGNADO ───
-            if (tieneTaller) _buildTallerAsignado(tallerAsignado),
+            if (tieneTaller && !isCancelado) _buildTallerAsignado(tallerAsignado),
 
             // ─── LISTA DE TALLERES DISPONIBLES ───
-            if (!tieneTaller) ...[
+            if (!tieneTaller && !isCancelado) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Row(
@@ -172,8 +249,94 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
               _buildListaTalleres(),
             ],
 
+            // ─── BOTÓN CANCELAR SOLICITUD ───
+            if (puedeCancelar) _buildCancelButton(),
+
             const SizedBox(height: 30),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ─── WIDGET: BANNER CANCELADO ─────────────────────────────────
+  Widget _buildCanceladoBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF37474F),
+            const Color(0xFF263238),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF78909C).withOpacity(0.15),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF78909C).withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.cancel_rounded,
+                color: Color(0xFF90A4AE), size: 48),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'SOLICITUD CANCELADA',
+            style: TextStyle(
+              color: Color(0xFF90A4AE),
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Esta solicitud de emergencia ha sido cancelada por el conductor.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white38, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── WIDGET: BOTÓN CANCELAR ───────────────────────────────────
+  Widget _buildCancelButton() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _isCancelando ? null : _confirmarCancelacion,
+        icon: _isCancelando
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Color(0xFFE53935)),
+              )
+            : const Icon(Icons.cancel_outlined, size: 20),
+        label: Text(_isCancelando ? 'Cancelando...' : 'Cancelar Solicitud'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFE53935),
+          side: const BorderSide(color: Color(0xFFE53935), width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
         ),
       ),
     );

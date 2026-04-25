@@ -22,7 +22,8 @@ class _HistorialIncidentesScreenState extends State<HistorialIncidentesScreen> {
     'Reportado',
     'Asignado',
     'En Camino',
-    'Resuelto'
+    'Resuelto',
+    'Cancelado'
   ];
 
   @override
@@ -45,6 +46,8 @@ class _HistorialIncidentesScreenState extends State<HistorialIncidentesScreen> {
         return const Color(0xFF1E88E5);
       case 'Resuelto':
         return const Color(0xFF43A047);
+      case 'Cancelado':
+        return const Color(0xFF78909C);
       default:
         return const Color(0xFFE53935);
     }
@@ -58,6 +61,8 @@ class _HistorialIncidentesScreenState extends State<HistorialIncidentesScreen> {
         return Icons.local_shipping;
       case 'Resuelto':
         return Icons.check_circle;
+      case 'Cancelado':
+        return Icons.cancel_rounded;
       default:
         return Icons.report_problem_rounded;
     }
@@ -226,7 +231,7 @@ class _HistorialIncidentesScreenState extends State<HistorialIncidentesScreen> {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: ['Reportado', 'Asignado', 'En Camino', 'Resuelto']
+        children: ['Reportado', 'Asignado', 'En Camino', 'Resuelto', 'Cancelado']
             .map((estado) {
           final count = conteo[estado] ?? 0;
           final color = _colorEstado(estado);
