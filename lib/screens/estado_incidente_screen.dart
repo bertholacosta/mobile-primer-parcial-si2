@@ -68,10 +68,38 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
     }
   }
 
-  Future<void> _asignarTaller(int tallerId) async {
+  Future<void> _solicitarCotizacion(int tallerId) async {
     setState(() => _isAsignando = true);
     try {
-      final updated = await ApiService.asignarTaller(_incidente['id'], tallerId);
+      await ApiService.solicitarCotizacion(_incidente['id'], tallerId);
+      if (mounted) {
+        setState(() => _isAsignando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cotización solicitada exitosamente. Espera la oferta del taller.'),
+            backgroundColor: Color(0xFF1E88E5),
+          ),
+        );
+        // Recargar el incidente para ver el estado de las cotizaciones
+        _recargarIncidente();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isAsignando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _aceptarCotizacion(int cotizacionId) async {
+    setState(() => _isAsignando = true);
+    try {
+      final updated = await ApiService.aceptarCotizacion(cotizacionId);
       if (mounted) {
         setState(() {
           _incidente = updated;
@@ -79,7 +107,7 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Taller asignado exitosamente'),
+            content: Text('Cotización aceptada. Taller asignado.'),
             backgroundColor: Color(0xFF43A047),
           ),
         );
@@ -94,6 +122,20 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
           ),
         );
       }
+    }
+  }
+
+  Future<void> _recargarIncidente() async {
+    try {
+      final incidentes = await ApiService.getMisIncidentes();
+      final updated = incidentes.firstWhere((i) => i['id'] == _incidente['id']);
+      if (mounted) {
+        setState(() {
+          _incidente = updated;
+        });
+      }
+    } catch (e) {
+      print('Error al recargar incidente: $e');
     }
   }
 
@@ -209,6 +251,11 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
 
             const SizedBox(height: 8),
 
+            // ─── ANÁLISIS DE INTELIGENCIA ARTIFICIAL ───
+            if (_incidente['analisis_ia'] != null) _buildAnalisisIA(_incidente['analisis_ia']),
+
+            const SizedBox(height: 8),
+
             // ─── TALLER ASIGNADO ───
             if (tieneTaller && !isCancelado) _buildTallerAsignado(tallerAsignado),
 
@@ -248,6 +295,10 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
               ),
               _buildListaTalleres(),
             ],
+
+            // ─── COTIZACIONES RECIBIDAS ───
+            if (!tieneTaller && !isCancelado && _incidente['cotizaciones'] != null && (_incidente['cotizaciones'] as List).isNotEmpty)
+              _buildCotizacionesRecibidas(_incidente['cotizaciones']),
 
             // ─── BOTÓN CANCELAR SOLICITUD ───
             if (puedeCancelar) _buildCancelButton(),
@@ -491,6 +542,95 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
               );
             }),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ─── WIDGET: ANÁLISIS DE INTELIGENCIA ARTIFICIAL ────────────
+  Widget _buildAnalisisIA(Map<String, dynamic> analisis) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF3F51B5).withOpacity(0.15),
+            const Color(0xFF3F51B5).withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF5C6BC0).withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF5C6BC0).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.psychology, color: Color(0xFF7986CB), size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Análisis Inteligente',
+                  style: TextStyle(
+                    color: Color(0xFFC5CAE9),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (analisis['NivelPrioridad'] != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3949AB).withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF5C6BC0).withOpacity(0.5)),
+                  ),
+                  child: Text(
+                    'Gravedad: ${analisis['NivelPrioridad']}',
+                    style: const TextStyle(
+                      color: Color(0xFFE8EAF6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (analisis['Resumen'] != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              analisis['Resumen'],
+              style: TextStyle(color: Colors.indigo.shade100, fontSize: 14, height: 1.4),
+            ),
+          ],
+          if (analisis['Clasificacion'] != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border(
+                  left: BorderSide(color: const Color(0xFF7986CB), width: 3),
+                ),
+              ),
+              child: Text(
+                analisis['Clasificacion'],
+                style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -745,14 +885,14 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _isAsignando
+                        onPressed: _isAsignando || _yaSolicitado(taller['Id'])
                             ? null
                             : () => _confirmarAsignacion(taller),
-                        icon: const Icon(Icons.handshake, size: 18),
-                        label: const Text('Solicitar Asistencia'),
+                        icon: Icon(_yaSolicitado(taller['Id']) ? Icons.pending_actions : Icons.handshake, size: 18),
+                        label: Text(_yaSolicitado(taller['Id']) ? 'Solicitud Pendiente' : 'Solicitar Cotización'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1565C0),
-                          foregroundColor: Colors.white,
+                          backgroundColor: _yaSolicitado(taller['Id']) ? Colors.white10 : const Color(0xFF1565C0),
+                          foregroundColor: _yaSolicitado(taller['Id']) ? Colors.white38 : Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
@@ -802,7 +942,7 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _asignarTaller(taller['Id']);
+              _solicitarCotizacion(taller['Id']);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1565C0),
@@ -813,6 +953,72 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
           ),
         ],
       ),
+    );
+  }
+
+  bool _yaSolicitado(int tallerId) {
+    if (_incidente['cotizaciones'] == null) return false;
+    final cots = _incidente['cotizaciones'] as List;
+    return cots.any((c) => c['taller_id'] == tallerId && c['estado'] == 'Solicitada');
+  }
+
+  Widget _buildCotizacionesRecibidas(List<dynamic> cotizaciones) {
+    final ofrecidas = cotizaciones.where((c) => c['estado'] == 'Ofrecida').toList();
+    if (ofrecidas.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+          child: Text(
+            'Cotizaciones Recibidas',
+            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+        ...ofrecidas.map((cot) {
+          final taller = cot['taller'] ?? {};
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A2236),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1E88E5).withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(taller['Nombre'] ?? 'Taller', 
+                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('Bs. ${cot['monto']}', 
+                         style: const TextStyle(color: Color(0xFF42A5F5), fontWeight: FontWeight.bold, fontSize: 18)),
+                  ],
+                ),
+                if (cot['mensaje'] != null && cot['mensaje'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(cot['mensaje'], style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isAsignando ? null : () => _aceptarCotizacion(cot['id']),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF43A047),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Aceptar Cotización'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 }

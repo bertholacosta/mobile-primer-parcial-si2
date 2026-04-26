@@ -219,6 +219,49 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> solicitarCotizacion(int incidenteId, int tallerId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/incidentes/$incidenteId/solicitar-cotizacion'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'taller_id': tallerId}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al solicitar cotización');
+    }
+  }
+
+  static Future<Map<String, dynamic>> aceptarCotizacion(int cotizacionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/incidentes/cotizaciones/$cotizacionId/aceptar'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al aceptar cotización');
+    }
+  }
+
   // --- Endpoints de Notificaciones ---
   static Future<void> updateFcmToken(String fcmToken) async {
     final prefs = await SharedPreferences.getInstance();
