@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api/api_service.dart';
 
 class EstadoIncidenteScreen extends StatefulWidget {
@@ -30,7 +31,10 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
     _EstadoPaso('Asignado', Icons.assignment_turned_in, Color(0xFFFB8C00)),
     _EstadoPaso('En Camino', Icons.local_shipping, Color(0xFF1E88E5)),
     _EstadoPaso('Resuelto', Icons.check_circle, Color(0xFF43A047)),
+    _EstadoPaso('Pagado', Icons.paid_rounded, Color(0xFF00C853)),
   ];
+
+  bool _isPagando = false;
 
   @override
   void initState() {
@@ -137,6 +141,99 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
     } catch (e) {
       print('Error al recargar incidente: $e');
     }
+  }
+
+  Future<void> _realizarPagoStripe() async {
+    setState(() => _isPagando = true);
+    try {
+      final checkoutUrl = await ApiService.createStripeCheckout(_incidente['id']);
+      final uri = Uri.parse(checkoutUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Abriendo pasarela de pago...'),
+              backgroundColor: Color(0xFF673AB7),
+            ),
+          );
+        }
+      } else {
+        throw 'No se pudo abrir el enlace de pago';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPagando = false);
+    }
+  }
+
+  Future<void> _pagoDirecto() async {
+    setState(() => _isPagando = true);
+    try {
+      final updated = await ApiService.registrarPagoDirecto(_incidente['id']);
+      if (mounted) {
+        setState(() {
+          _incidente = updated;
+          _isPagando = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pago registrado exitosamente. Servicio finalizado.'),
+            backgroundColor: Color(0xFF43A047),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPagando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _confirmarPagoDirecto() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2236),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.money_off_rounded, color: Color(0xFF43A047), size: 28),
+            SizedBox(width: 10),
+            Text('Pago en Efectivo', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          '¿Confirmas que has realizado el pago directamente al taller en efectivo o transferencia externa?',
+          style: TextStyle(color: Colors.white70, fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _pagoDirecto();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF43A047),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Sí, Confirmar Pago'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _cancelarIncidente() async {
@@ -258,6 +355,11 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
 
             // ─── TALLER ASIGNADO ───
             if (tieneTaller && !isCancelado) _buildTallerAsignado(tallerAsignado),
+
+            // ─── SECCIÓN DE PAGO ───
+            if (estadoActual == 'Resuelto') _buildSeccionPago(),
+
+            if (estadoActual == 'Pagado') _buildPagadoBanner(),
 
             // ─── LISTA DE TALLERES DISPONIBLES ───
             if (!tieneTaller && !isCancelado) ...[
@@ -1019,6 +1121,141 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
           );
         }).toList(),
       ],
+    );
+  }
+
+  Widget _buildSeccionPago() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF1A2236),
+            const Color(0xFF1A2236).withOpacity(0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF42A5F5).withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF42A5F5).withOpacity(0.1),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF42A5F5), size: 48),
+          const SizedBox(height: 16),
+          const Text(
+            'PAGAR SERVICIO',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'El taller ha marcado el servicio como resuelto. Por favor, selecciona un método de pago para finalizar.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white60, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          
+          // Botón Stripe
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isPagando ? null : _realizarPagoStripe,
+              icon: const Icon(Icons.credit_card_rounded),
+              label: const Text('Pagar con Tarjeta (Stripe)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF673AB7),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // Botón Pago Directo
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isPagando ? null : _confirmarPagoDirecto,
+              icon: const Icon(Icons.payments_outlined),
+              label: const Text('Pago Directo en Taller'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF43A047),
+                side: const BorderSide(color: Color(0xFF43A047), width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ),
+          
+          if (_isPagando)
+            const Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: CircularProgressIndicator(color: Color(0xFF42A5F5)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagadoBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF1B5E20).withOpacity(0.2),
+            const Color(0xFF1B5E20).withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF43A047).withOpacity(0.5), width: 1.5),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF43A047).withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_circle_rounded, color: Color(0xFF4CAF50), size: 48),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'SERVICIO FINALIZADO',
+            style: TextStyle(
+              color: Color(0xFF81C784),
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'El pago ha sido procesado correctamente y el incidente está cerrado. ¡Gracias por usar nuestro servicio!',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+        ],
+      ),
     );
   }
 }

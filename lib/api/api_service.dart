@@ -366,4 +366,47 @@ class ApiService {
       throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al actualizar perfil');
     }
   }
+
+  // --- Endpoints de Pagos ---
+  static Future<String> createStripeCheckout(int incidenteId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/pagos/$incidenteId/stripe'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['checkout_url'];
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al crear sesión de pago');
+    }
+  }
+
+  static Future<Map<String, dynamic>> registrarPagoDirecto(int incidenteId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/pagos/$incidenteId/directo'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al registrar pago directo');
+    }
+  }
 }
