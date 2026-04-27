@@ -948,6 +948,51 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
                           ),
                       ],
                     ),
+                    // ─── SERVICIOS DEL TALLER ──────────────────────
+                    if (taller['servicios'] != null && (taller['servicios'] as List).isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: (taller['servicios'] as List).map((svc) {
+                          final nombre = svc['nombre'] as String? ?? '';
+                          IconData icono = Icons.build_circle_outlined;
+                          Color color = const Color(0xFF42A5F5);
+                          if (nombre.contains('Eléctrico') || nombre.contains('Diagnóstico')) {
+                            icono = Icons.electrical_services;
+                            color = const Color(0xFFFFB300);
+                          } else if (nombre.contains('Vulcaniz') || nombre.contains('Llanta')) {
+                            icono = Icons.tire_repair;
+                            color = const Color(0xFF66BB6A);
+                          } else if (nombre.contains('Remolque')) {
+                            icono = Icons.fire_truck;
+                            color = const Color(0xFFEF5350);
+                          } else if (nombre.contains('Chapa') || nombre.contains('Pintura')) {
+                            icono = Icons.format_paint;
+                            color = const Color(0xFFAB47BC);
+                          }
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: color.withOpacity(0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(icono, color: color, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  nombre,
+                                  style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     // Capacity bar
                     Row(
@@ -1080,17 +1125,62 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
         ),
         ...ofrecidas.map((cot) {
           final taller = cot['taller'] ?? {};
+          final servicios = taller['servicios'] as List? ?? [];
+          
+          // Lógica simple de recomendación IA
+          bool esRecomendado = false;
+          final analisisIA = _incidente['analisis_ia'];
+          if (analisisIA != null) {
+            final resumen = (analisisIA['Resumen'] ?? '').toString().toLowerCase();
+            final clasificacion = (analisisIA['Clasificacion'] ?? '').toString().toLowerCase();
+            final textoIA = '$resumen $clasificacion';
+            
+            for (var svc in servicios) {
+              final nombreSvc = (svc['nombre'] ?? '').toString().toLowerCase();
+              // Si el servicio se menciona en el análisis de la IA, lo recomendamos
+              if (nombreSvc.isNotEmpty && textoIA.contains(nombreSvc)) {
+                esRecomendado = true;
+                break;
+              }
+              // Mapeo común (ej: 'eléctrico' para 'Auxilio Eléctrico')
+              if (nombreSvc.contains('eléctrico') && textoIA.contains('batería')) esRecomendado = true;
+              if (nombreSvc.contains('vulcaniz') && textoIA.contains('llanta')) esRecomendado = true;
+              if (nombreSvc.contains('remolque') && textoIA.contains('choque')) esRecomendado = true;
+            }
+          }
+
           return Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFF1A2236),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1E88E5).withOpacity(0.3)),
+              border: Border.all(
+                color: esRecomendado ? const Color(0xFFFFB300) : const Color(0xFF1E88E5).withOpacity(0.3),
+                width: esRecomendado ? 2 : 1,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (esRecomendado) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB300).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.auto_awesome, color: Color(0xFFFFB300), size: 14),
+                        SizedBox(width: 6),
+                        Text('Recomendado por IA', style: TextStyle(color: Color(0xFFFFB300), fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1100,8 +1190,27 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
                          style: const TextStyle(color: Color(0xFF42A5F5), fontWeight: FontWeight.bold, fontSize: 18)),
                   ],
                 ),
-                if (cot['mensaje'] != null && cot['mensaje'].toString().isNotEmpty) ...[
+                if (servicios.isNotEmpty) ...[
                   const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: servicios.map((svc) {
+                      final nombre = svc['nombre'] as String? ?? '';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E88E5).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF1E88E5).withOpacity(0.3)),
+                        ),
+                        child: Text(nombre, style: const TextStyle(color: Color(0xFF64B5F6), fontSize: 10)),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                if (cot['mensaje'] != null && cot['mensaje'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 12),
                   Text(cot['mensaje'], style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 ],
                 const SizedBox(height: 16),
@@ -1120,6 +1229,7 @@ class _EstadoIncidenteScreenState extends State<EstadoIncidenteScreen>
             ),
           );
         }).toList(),
+
       ],
     );
   }

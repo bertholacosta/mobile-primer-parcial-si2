@@ -409,4 +409,26 @@ class ApiService {
       throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al registrar pago directo');
     }
   }
+
+  static Future<Map<String, dynamic>> reintentarAnalisis(int incidenteId, String nuevaDescripcion) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/incidentes/$incidenteId/reintentar-analisis'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'nueva_descripcion': nuevaDescripcion}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['detail'] ?? 'Error al reintentar análisis');
+    }
+  }
 }

@@ -16,6 +16,8 @@ class HistorialIncidentesScreen extends StatefulWidget {
 class _HistorialIncidentesScreenState extends State<HistorialIncidentesScreen> {
   late Future<List<dynamic>> _incidentesFuture;
   String _filtroEstado = 'Todos';
+  final Map<int, TextEditingController> _reintentarControllers = {};
+  bool _isReintentando = false;
 
   final List<String> _estados = [
     'Todos',
@@ -452,6 +454,12 @@ class _HistorialIncidentesScreenState extends State<HistorialIncidentesScreen> {
                   ],
                 ),
 
+                // ─── ANÁLISIS IA ───────────────────────────
+                if (inc['analisis_ia'] != null) ...[ 
+                  const SizedBox(height: 12),
+                  _buildAnalisisIACard(inc['analisis_ia'], inc['id'] as int),
+                ],
+
                 // Mini timeline
                 const SizedBox(height: 14),
                 _buildMiniTimeline(estado),
@@ -459,6 +467,209 @@ class _HistorialIncidentesScreenState extends State<HistorialIncidentesScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ─── ANÁLISIS IA CARD (compacta o formulario de reintento) ──────
+  Widget _buildAnalisisIACard(Map<String, dynamic> analisis, int incidenteId) {
+    final esValida = analisis['informacion_valida'] != false; // null → válido
+
+    if (!esValida) {
+      // Crear controlador si no existe
+      _reintentarControllers.putIfAbsent(incidenteId, () => TextEditingController());
+      final ctrl = _reintentarControllers[incidenteId]!;
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF7B4A00).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB300), size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Análisis IA — Información insuficiente',
+                    style: TextStyle(
+                      color: Color(0xFFFFCC80),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              analisis['Resumen'] ?? 'Por favor agrega más información sobre el incidente.',
+              style: TextStyle(color: Colors.orange.shade200, fontSize: 12, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Describe el incidente: tipo de choque, daños, heridos, ubicación...',
+                hintStyle: TextStyle(color: Colors.white38, fontSize: 12),
+                filled: true,
+                fillColor: Colors.black.withOpacity(0.3),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: const Color(0xFFFFB300).withOpacity(0.3)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: const Color(0xFFFFB300).withOpacity(0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFFFB300)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isReintentando
+                    ? null
+                    : () async {
+                        final texto = ctrl.text.trim();
+                        if (texto.isEmpty) return;
+                        setState(() => _isReintentando = true);
+                        try {
+                          await ApiService.reintentarAnalisis(incidenteId, texto);
+                          ctrl.clear();
+                          _refresh();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                            );
+                          }
+                        } finally {
+                          if (mounted) setState(() => _isReintentando = false);
+                        }
+                      },
+                icon: _isReintentando
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.refresh, size: 16),
+                label: Text(_isReintentando ? 'Analizando...' : 'Re-analizar con IA'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFB300),
+                  foregroundColor: Colors.black87,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Análisis válido
+    final nivel = analisis['NivelPrioridad'] as String?;
+    Color nivelColor = const Color(0xFFFFA726);
+    if (nivel == 'Alta') nivelColor = const Color(0xFFE53935);
+    if (nivel == 'Baja') nivelColor = const Color(0xFF43A047);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF3F51B5).withOpacity(0.18),
+            const Color(0xFF3F51B5).withOpacity(0.06),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF5C6BC0).withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.psychology, color: Color(0xFF7986CB), size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Análisis Inteligente',
+                  style: TextStyle(
+                    color: Color(0xFFC5CAE9),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (nivel != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: nivelColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: nivelColor.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6, height: 6,
+                        decoration: BoxDecoration(color: nivelColor, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        nivel,
+                        style: TextStyle(color: nivelColor, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          if (analisis['Resumen'] != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              analisis['Resumen'],
+              style: TextStyle(color: Colors.indigo.shade100.withOpacity(0.8), fontSize: 12, height: 1.4),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (analisis['Clasificacion'] != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: const Border(left: BorderSide(color: Color(0xFF7986CB), width: 2.5)),
+              ),
+              child: Text(
+                analisis['Clasificacion'],
+                style: const TextStyle(color: Colors.white60, fontSize: 11, fontStyle: FontStyle.italic),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
