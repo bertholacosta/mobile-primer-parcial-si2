@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../api/api_service.dart';
 import 'estado_incidente_screen.dart';
 
@@ -26,8 +29,11 @@ class _ReportarIncidenteScreenState extends State<ReportarIncidenteScreen> {
   final List<File> _imagenes = [];
   static const int _maxImagenes = 10;
 
-  // Audio sigue simulado por ahora
-  final String _mockAudio = "";
+  // Audio Recording
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  String? _audioPath;
+  bool _isRecording = false;
+  String _audioBase64 = "";
 
   Future<void> _tomarFoto() async {
     if (_imagenes.length >= _maxImagenes) {
@@ -134,6 +140,49 @@ class _ReportarIncidenteScreenState extends State<ReportarIncidenteScreen> {
     return base64List.join('|||');
   }
 
+  // --- AUDIO RECORDING METHODS ---
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final directory = await getApplicationDocumentsDirectory();
+        final path = '${directory.path}/incidente_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+        const config = RecordConfig();
+        await _audioRecorder.start(config, path: path);
+
+        setState(() {
+          _isRecording = true;
+          _audioPath = path;
+        });
+      }
+    } catch (e) {
+      print("Error al iniciar grabación: $e");
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      final path = await _audioRecorder.stop();
+      if (path != null) {
+        final bytes = await File(path).readAsBytes();
+        setState(() {
+          _isRecording = false;
+          _audioBase64 = base64Encode(bytes);
+          _audioPath = path;
+        });
+      }
+    } catch (e) {
+      print("Error al detener grabación: $e");
+    }
+  }
+
+  void _eliminarAudio() {
+    setState(() {
+      _audioPath = null;
+      _audioBase64 = "";
+    });
+  }
+
   Future<void> _submitIncidente() async {
     if (_vehiculoSeleccionadoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -155,7 +204,7 @@ class _ReportarIncidenteScreenState extends State<ReportarIncidenteScreen> {
           "evidencia": {
             "descripcion": _descripcionController.text.trim(),
             "fotos": fotosEncoded,
-            "audio": _mockAudio
+            "audio": _audioBase64
           }
         };
 
@@ -268,6 +317,7 @@ class _ReportarIncidenteScreenState extends State<ReportarIncidenteScreen> {
   @override
   void dispose() {
     _descripcionController.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -460,6 +510,90 @@ class _ReportarIncidenteScreenState extends State<ReportarIncidenteScreen> {
                           ),
                         ),
                       ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // --- EVIDENCIA DE AUDIO ---
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.mic, color: Colors.red, size: 22),
+                          SizedBox(width: 8),
+                          Text('Descripción por Voz (Audio)',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_audioPath == null && !_isRecording)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _startRecording,
+                            icon: const Icon(Icons.mic),
+                            label: const Text('Grabar Explicación'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[50],
+                              foregroundColor: Colors.red[700],
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        )
+                      else if (_isRecording)
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.red[100],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.circle, color: Colors.red, size: 12),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text('Grabando audio...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.stop, color: Colors.red),
+                                onPressed: _stopRecording,
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.green[100]!),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text('Audio Capturado', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                onPressed: _eliminarAudio,
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
